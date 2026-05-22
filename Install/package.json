@@ -1,0 +1,44 @@
+{
+	"name" : "JobsLrs",
+	"display_name" : "Lorry Receipts",
+	"description" : "<p>Lorry Receipts package for TMS</p>",
+	"module_type" : "packages",
+	"app_type" : "tms",
+	"category" : "admin",
+	"version" : "0.0.0",
+	"repo" : "https://github.com/sp-tms/tms-packages-admin-jobslrs",
+	"class" : "Apps\\Tms\\Packages\\Jobs\\Lrs\\JobsLrs",
+	"dependencies" : 
+	{
+		"core" : 
+		{
+			"name" : "Core",
+			"version" : "0.0.0-rc.15",
+			"repo" : "https://github.com/sp-framework/core"
+		},
+		"apptype" : 
+		{
+			"name" : "Transport Management System",
+			"version" : "0.0.0",
+			"repo" : "https://github.com/sp-tms/tms"
+		},
+		"packages" : [],
+		"middlewares" : [],
+		"externals" : 
+		{
+			"composer" : 
+			{
+				"require" : []
+			},
+			"config" : 
+			{
+				"allow-plugins" : []
+			},
+			"extra" : 
+			{
+				"patches" : []
+			}
+		}
+	},
+	"settings" : []
+}
