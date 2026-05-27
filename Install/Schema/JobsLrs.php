@@ -63,28 +63,28 @@ class JobsLrs
                     'from_company_id',
                     [
                         'type'          => Column::TYPE_INTEGER,
-                        'notNull'       => false,
+                        'notNull'       => true,
                     ]
                 ),
                 new Column(
                     'to_company_id',
                     [
                         'type'          => Column::TYPE_INTEGER,
-                        'notNull'       => false,
+                        'notNull'       => true,
                     ]
                 ),
                 new Column(
                     'from_company_address_id',
                     [
                         'type'          => Column::TYPE_INTEGER,
-                        'notNull'       => false,
+                        'notNull'       => true,
                     ]
                 ),
                 new Column(
                     'to_company_address_id',
                     [
                         'type'          => Column::TYPE_INTEGER,
-                        'notNull'       => false,
+                        'notNull'       => true,
                     ]
                 ),
                 new Column(//Status of LR: Open, On Trip, Done, Cancelled, Invalid
@@ -102,7 +102,7 @@ class JobsLrs
                     ]
                 ),
                 new Column(
-                    'lr_dev_notes',
+                    'lr_internal_notes',
                     [
                         'type'          => Column::TYPE_VARCHAR,
                         'size'          => 2048,
