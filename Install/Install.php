@@ -1,9 +1,9 @@
 <?php
 
-namespace Apps\Tms\Packages\Billing\Lrs\Install;
+namespace Apps\Tms\Packages\Jobs\Lrs\Install;
 
-use Apps\Tms\Packages\Billing\Lrs\Install\Schema\BillingLrs;
-use Apps\Tms\Packages\Billing\Lrs\Model\AppsTmsBillingLrs;
+use Apps\Tms\Packages\Jobs\Lrs\Install\Schema\JobsLrs;
+use Apps\Tms\Packages\Jobs\Lrs\Model\AppsTmsJobsLrs;
 use System\Base\BasePackage;
 use System\Base\Providers\ModulesServiceProvider\DbInstaller;
 
@@ -17,14 +17,14 @@ class Install extends BasePackage
     {
         $this->databases =
             [
-                'apps_tms_billing_lrs'  => [
-                    'schema'        => new BillingLrs,
-                    'model'         => new AppsTmsBillingLrs,
+                'apps_tms_jobs_lrs'  => [
+                    'schema'        => new JobsLrs,
+                    'model'         => new AppsTmsJobsLrs,
                     'configParams'  =>
                         [
-                            'min_index_chars' => 6
+                            'min_index_chars' => 3
                         ]
-                ],
+                ]
             ];
 
         $this->dbInstaller = new DbInstaller;
