@@ -5,6 +5,7 @@ namespace Apps\Tms\Packages\Jobs\Lrs;
 use Apps\Tms\Packages\Jobs\Invoices\JobsInvoices;
 use Apps\Tms\Packages\Jobs\Invoices\Model\AppsTmsJobsInvoices;
 use Apps\Tms\Packages\Jobs\Lrs\Model\AppsTmsJobsLrs;
+use Apps\Tms\Packages\Jobs\Lrs\Settings;
 use Apps\Tms\Packages\Jobs\Trips\Model\AppsTmsJobsTrips;
 use System\Base\BasePackage;
 
@@ -14,11 +15,12 @@ class JobsLrs extends BasePackage
 
     protected $packageName = 'lrs';
 
+    protected $settings = Settings::class;
+
     public $lrs;
 
     public function init()
     {
-
         parent::init();
 
         return $this;
@@ -109,6 +111,8 @@ class JobsLrs extends BasePackage
 
         //Add new LR
         $this->setFFAddUsingUpdateOrInsert(true);
+        $activityLogs = [];
+
         $newLr = $this->add($data);
 
         if (!$newLr) {
@@ -120,13 +124,15 @@ class JobsLrs extends BasePackage
         //Add Trip
         $lr = $this->packagesData->last;
 
+        $activityLogs = array_merge($activityLogs, $lr);
+
         $now = \Carbon\Carbon::now();
 
         $newTripArr = [];
         $newTripArr['id'] = $lr['id'];
         $newTripArr['employee_id'] = 0;
-        $newTripArr['start_date'] = $now->toDateString();
-        $newTripArr['end_date'] = $now->toDateString();
+        $newTripArr['start_date'] = $now->format('d-m-Y');
+        $newTripArr['end_date'] = $now->format('d-m-Y');
         $newTripArr['start_location_id'] = 0;
         $newTripArr['load_location_id'] = 0;
         $newTripArr['unload_location_id'] = 0;
@@ -158,6 +164,8 @@ class JobsLrs extends BasePackage
 
             return false;
         }
+
+        $activityLogs = array_merge($activityLogs, $tripsPackage->packagesData->last);
 
         //Add Invoice
         $newInvoiceArr = [];
@@ -198,6 +206,9 @@ class JobsLrs extends BasePackage
             return false;
         }
 
+        $activityLogs = array_merge($activityLogs, $invoicesPackage->packagesData->last);
+        $this->addActivityLog($activityLogs);
+
         $this->addResponse('Added new Job!');
 
         return true;
@@ -205,11 +216,21 @@ class JobsLrs extends BasePackage
 
     public function updateLr($data)
     {
-        if ($this->update($data)) {
-            try {
-                $invoicesPackage = new \Apps\Tms\Packages\Jobs\Invoices\JobsInvoices;
+        $lr = $this->getLr($data['id']);
 
-                $invoicesPackage->update($data);
+        $trip = $lr['trip'];
+        $invoice = $lr['invoice'];
+
+        if ($this->update(array_merge($lr, $data))) {
+            try {
+                // $tripsPackage = new \Apps\Tms\Packages\Jobs\Trips\JobsTrips;
+                // $tripsPackage->update(array_merge($trip, $data));
+
+                $invoicesPackage = new \Apps\Tms\Packages\Jobs\Invoices\JobsInvoices;
+                $invoicesPackage->update(array_merge($invoice, $data));
+
+                unset($data['lr']);
+                $this->addActivityLog($data, array_merge($lr, $trip, $invoice));
             } catch (\throwable $e) {
                 $this->addResponse($e->getMessage(), 1);
 
@@ -276,7 +297,7 @@ class JobsLrs extends BasePackage
 
         $newLr['financial_year'] = $nowStartYear . '-' . $nowEndYear;
 
-        $newLr['date'] = $now->toDateString();
+        $newLr['date'] = $now->format('d-m-Y');
 
         $this->addResponse('Generated LR Details', 0, ['newLr' => $newLr]);
 
@@ -287,50 +308,63 @@ class JobsLrs extends BasePackage
     {
         $this->setFFValidation(false);
 
-        if (!isset($data['uuid'])) {
-            $this->addResponse('UUID of file not set', 1);
-
-            return false;
-        }
-
-        $remove = false;
-        if (isset($data['remove']) && $data['remove'] == 'true') {
-            $remove = true;
-        }
-
-        if (!$remove && !isset($data['org_file_name'])) {
-            $this->addResponse('File name not set', 1);
-
-            return false;
-        }
-
         $lr = $this->getById((int) $data['lr_no']);
 
         if (!isset($lr['documents'])) {
             $lr['documents'] = [];
         }
-
+        if (!isset($data['documents'])) {
+            $data['documents'] = [];
+        }
         if (is_string($lr['documents'])) {
             $lr['documents'] = $this->helper->decode($lr['documents'], true);
         }
 
-        if ($remove) {
-            if (isset($lr['documents'][$data['uuid']])) {
-                unset($lr['documents'][$data['uuid']]);
-
-                $this->basepackages->storages->removeFile($data['uuid']);
-            }
+        if (count($lr['documents']) > 0) {
+            $lr['documents'] = array_replace($data['documents'], array_intersect_key($data['documents'], $lr['documents']));
         } else {
-            $lr['documents'][$data['uuid']]['uuid'] = $data['uuid'];
-            $lr['documents'][$data['uuid']]['org_file_name'] = $data['org_file_name'];
+            $lr['documents'] = $data['documents'];
+        }
+
+        foreach ($lr['documents'] as $uuid => &$document) {
+            if (!isset($document['account_id'])) {
+                $document['account_id'] = 0;
+            } else {
+                $document['account_id'] = (int) $document['account_id'];
+            }
+
+            if ($document['account_id'] === 0) {
+                if ($this->access->auth->check()) {
+                    $document['account_id'] = $this->access->auth->account()['id'];
+                    $account = $this->basepackages->accounts->getAccountById($this->access->auth->account()['id']);
+
+                    if ($account && isset($account['contact']['full_name'])) {
+                        $document['account_name'] = $account['contact']['full_name'];
+                    }
+                } else {
+                    $document['account_name'] = '-';
+                }
+            }
+
+            if (!isset($document['date'])) {
+                $document['date'] = (\Carbon\Carbon::now('Asia/Kolkata'))->toAtomString();
+            }
         }
 
         if ($this->update($lr)) {
-            $this->addResponse('Added document to job', 0, ['documents' => $lr['documents']]);
+            if (isset($data['removesigned']) && $data['removesigned'] == 'true') {
+                try {
+                    $invoicesPackage = new \Apps\Tms\Packages\Jobs\Invoices\JobsInvoices;
 
-            if ($remove) {
-                $this->addResponse('Removed document from job', 0, ['documents' => $lr['documents']]);
+                    $invoicesPackage->update(['id' => $lr['id'], 'signed_uuid' => null, 'signed_document' => null, 'signed_by' => null, 'signed_at' => null]);
+                } catch (\throwable $e) {
+                    $this->addResponse($e->getMessage(), 1);
+
+                    return false;
+                }
             }
+
+            $this->addResponse('Added documents to job', 0, ['documents' => $lr['documents']]);
 
             return true;
         }
@@ -371,4 +405,116 @@ class JobsLrs extends BasePackage
                     ]
             ];
     }
+
+    public function email($data)
+    {
+        if (!isset($data['to']) || (isset($data['to']) && $data['to'] === '')) {{
+            $this->addResponse('Please provide to address!', 1);
+
+            return false;
+        }}
+
+        if (!isset($data['subject']) || (isset($data['subject']) && $data['subject'] === '')) {{
+            $this->addResponse('Please provide subject!', 1);
+
+            return false;
+        }}
+
+        if (!isset($data['message'])) {{
+            $this->addResponse('Please provide message!', 1);
+
+            return false;
+        }}
+
+        $package = $this->modules->packages->getPackageByClass(get_class(new \Apps\Tms\Packages\Jobs\Invoices\JobsInvoices));
+
+        if (!$package) {
+            return $this->throwIdNotFound();
+        }
+
+        $lr = $this->getLr((int) $data['lr_no']);
+        if (isset($lr['organisation_id']) && $lr['organisation_id'] !== 0) {
+            $companiesPackage = new \Apps\Tms\Packages\Companies\Companies;
+
+            $lr['organisation'] = $companiesPackage->getCompany($lr['organisation_id']);
+        }
+
+        $organisation_settings = [];
+        if (isset($package['settings']['organisations'][$lr['organisation_id']])) {
+            $organisation_settings = $package['settings']['organisations'][$lr['organisation_id']];
+        }
+
+        $emailData['app_id'] = $this->apps->getAppInfo()['id'];
+        $emailData['domain_id'] = $this->domains->getDomain()['id'];
+        $emailData['status'] = 1;
+        $emailData['priority'] = 3;
+
+        if (isset($organisation_settings['invoice_sender']) && $organisation_settings['invoice_sender'] !== '') {
+            $emailData['from'] = $organisation_settings['invoice_sender'];
+        } else if (isset($lr['organisation']['company_email'])) {
+            $emailData['from'] = $lr['organisation']['company_email'] . '|' . $lr['organisation']['name'];
+        }
+
+        $data['to'] = str_replace(' ', '', $data['to']);
+        $toAddresses = explode(',', $data['to']);
+        $emailData['to_addresses'] = $toAddresses;
+
+        $data['cc'] = str_replace(' ', '', $data['cc']);
+        $ccAddresses = explode(',', $data['cc']);
+        $emailData['cc_addresses'] = $ccAddresses;
+
+        $data['bcc'] = str_replace(' ', '', $data['bcc']);
+        $bccAddresses = explode(',', $data['bcc']);
+        $emailData['bcc_addresses'] = $bccAddresses;
+
+        $emailData['subject'] = $data['subject'];
+        $emailData['body'] = $data['message'];
+        if (isset($data['attachments'])) {
+            $emailData['attachments'] = $data['attachments'];
+        }
+
+        $this->basepackages->emailqueue->addQueue($emailData);
+
+        $this->addResponse($this->basepackages->emailqueue->packagesData->responseMessage, $this->basepackages->emailqueue->packagesData->responseCode);
+    }
+
+    public function getFormattedInvoice($job, $organisation_settings)
+    {
+        if (isset($organisation_settings['invoice_format']) && $organisation_settings['invoice_format'] !== '') {
+            preg_match_all('/{.*?}/', $organisation_settings['invoice_format'], $invoiceFormatArr);
+
+            $formattedInvoice = str_replace('{', '', str_replace('}', '', $organisation_settings['invoice_format']));
+
+            if (count($invoiceFormatArr[0]) > 0) {
+                foreach ($invoiceFormatArr[0] as $invoiceFormatKey) {
+                    $invoiceFormatKey = str_replace('{', '', str_replace('}', '', $invoiceFormatKey));
+
+                    $path = findKeyLocation($job, $invoiceFormatKey);
+
+                    if (!$path) {
+                        continue;
+                    }
+
+                    $value = array_reduce($path, function($carry, $key) {
+                        return $carry[$key];
+                    }, $job);
+
+                    $formattedInvoice = str_replace($invoiceFormatKey, $value, $formattedInvoice);
+                }
+            }
+
+            return $formattedInvoice;
+        }
+
+        return '';
+    }
+
+    // public function getSender($job, $organisation_settings)
+    // {
+    //     if (isset($organisation_settings['invoice_format']) && $organisation_settings['invoice_format'] !== '') {
+
+    //     }
+
+    //     return '';
+    // }
 }

@@ -40,7 +40,7 @@ class AppsTmsJobsLrs extends BaseModel
 
     public $archived;
 
-    public $lr_internal_notes;
+    public $lr_dev_notes;
 
     public $documents;
 

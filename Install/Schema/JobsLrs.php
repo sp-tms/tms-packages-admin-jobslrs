@@ -102,7 +102,7 @@ class JobsLrs
                     ]
                 ),
                 new Column(
-                    'lr_internal_notes',
+                    'lr_dev_notes',
                     [
                         'type'          => Column::TYPE_VARCHAR,
                         'size'          => 2048,
@@ -137,7 +137,9 @@ class JobsLrs
                 [
                     'financial_year',
                     'organisation_id',
-                    'company_id'
+                    'company_id',
+                    'from_company_address_id',
+                    'to_company_address_id'
                 ],
                 'INDEX'
             )
