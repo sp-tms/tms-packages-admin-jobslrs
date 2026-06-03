@@ -5,7 +5,7 @@
 	"module_type" : "packages",
 	"app_type" : "tms",
 	"category" : "admin",
-	"version" : "0.0.0",
+	"version" : "0.1.0",
 	"repo" : "https://github.com/sp-tms/tms-packages-admin-jobslrs",
 	"class" : "Apps\\Tms\\Packages\\Jobs\\Lrs\\JobsLrs",
 	"dependencies" : 
