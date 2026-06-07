@@ -14,6 +14,8 @@ class AppsTmsJobsLrs extends BaseModel
 
     public $id;
 
+    public $lr_no;
+
     public $financial_year;
 
     public $organisation_id;
@@ -23,10 +25,6 @@ class AppsTmsJobsLrs extends BaseModel
     public $vehicle_id;
 
     public $date;
-
-    public $from;
-
-    public $to;
 
     public $from_company_id;
 

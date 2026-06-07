@@ -320,7 +320,7 @@ class JobsLrs extends BasePackage
             $lr['documents'] = $this->helper->decode($lr['documents'], true);
         }
 
-        if (count($lr['documents']) > 0) {
+        if (isset($lr['documents']) && count($lr['documents']) > 0) {
             $lr['documents'] = array_replace($data['documents'], array_intersect_key($data['documents'], $lr['documents']));
         } else {
             $lr['documents'] = $data['documents'];

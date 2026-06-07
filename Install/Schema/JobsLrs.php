@@ -21,6 +21,13 @@ class JobsLrs
                         'primary'       => true,
                     ]
                 ),
+                new Column(
+                    'lr_no',
+                    [
+                        'type'          => Column::TYPE_INTEGER,
+                        'notNull'       => true,
+                    ]
+                ),
                 //We will use this to archive and only show current year in job list to avoid chaos on the list page.
                 new Column(
                     'financial_year',
@@ -124,6 +131,19 @@ class JobsLrs
                         'notNull'       => false,
                     ]
                 ),
+            ],
+            'indexes' => [
+                new Index(
+                    'column_UNIQUE',
+                    [
+                        'financial_year',
+                        'lr_no',
+                    ],
+                    'UNIQUE'
+                )
+            ],
+            'options' => [
+                'TABLE_COLLATION' => 'utf8mb4_general_ci'
             ]
         ];
     }
@@ -135,6 +155,8 @@ class JobsLrs
             new Index(
                 'column_INDEX',
                 [
+                    'archived',
+                    'lr_no',
                     'financial_year',
                     'organisation_id',
                     'company_id',
