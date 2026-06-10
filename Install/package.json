@@ -42,6 +42,7 @@
 	},
 	"settings" : 
 	{
+		"componentRoute" : "jobs",
 		"organisations" : []
 	}
 }

@@ -58,20 +58,19 @@ class JobsLrs extends BasePackage
 
     public function addLr($data, $viaExtractor = false)
     {
-        if (isset($data['lr'])) {//New LR via Form
-            $data['id'] = (int) $data['lr'];
-            $data['archived'] = false;
-            unset($data['lr']);
-        }
+        // if (isset($data['lr'])) {//New LR via Form
+        //     $data['id'] = (int) $data['lr'];
+        //     $data['archived'] = false;
+        //     unset($data['lr']);
+        // }
 
-        if (!isset($data['id'])) {
-            $this->getDbCount(true);
+        // if (!isset($data['id'])) {
+        //     $this->getDbCount(true);
 
-            $data['id'] = $this->getLastInsertedId() + 1;
-        }
+        //     $data['id'] = $this->getLastInsertedId() + 1;
+        // }
 
         if (!isset($data['financial_year'])) {
-            //Need to autogenerate using financial_year and increamented value from last invoice_no.
             try {
                 $date = \Carbon\Carbon::now();
 
@@ -101,17 +100,24 @@ class JobsLrs extends BasePackage
             $data['financial_year'] = $startYear . '-' . $endYear;
         }
 
-        if (!isset($data['invoice_no'])) {
-            $invoicesPackage = new \Apps\Tms\Packages\Jobs\Invoices\JobsInvoices;
+        // if (!isset($data['invoice_no'])) {
+        //     $invoicesPackage = new \Apps\Tms\Packages\Jobs\Invoices\JobsInvoices;
 
-            $newInvoiceNumber = $invoicesPackage->getNextInvoiceNumber($data['financial_year']);
+        //     $newInvoiceNumber = $invoicesPackage->getNextInvoiceNumber($data['financial_year']);
 
-            $data['invoice_no'] = $newInvoiceNumber;
-        }
+        //     $data['invoice_no'] = $newInvoiceNumber;
+        // }
 
         //Add new LR
-        $this->setFFAddUsingUpdateOrInsert(true);
+        if ($viaExtractor) {
+            $this->setFFAddUsingUpdateOrInsert(true);
+        }
+
         $activityLogs = [];
+
+        if (!isset($data['archived'])) {
+            $data['archived'] = false;
+        }
 
         $newLr = $this->add($data);
 
@@ -126,19 +132,9 @@ class JobsLrs extends BasePackage
 
         $activityLogs = array_merge($activityLogs, $lr);
 
-        $now = \Carbon\Carbon::now();
-
         $newTripArr = [];
         $newTripArr['id'] = $lr['id'];
-        $newTripArr['employee_id'] = 0;
-        $newTripArr['start_date'] = $now->format('d-m-Y');
-        $newTripArr['end_date'] = $now->format('d-m-Y');
-        $newTripArr['start_location_id'] = 0;
-        $newTripArr['load_location_id'] = 0;
-        $newTripArr['unload_location_id'] = 0;
-        $newTripArr['end_location_id'] = 0;
-        $newTripArr['status'] = $lr['status'];
-        $newTripArr['archived'] = false;
+        $newTripArr['financial_year'] = $lr['financial_year'];
 
         $tripsPackage = new \Apps\Tms\Packages\Jobs\Trips\JobsTrips;
         $tripsPackage->setFFAddUsingUpdateOrInsert(true);
@@ -171,13 +167,6 @@ class JobsLrs extends BasePackage
         $newInvoiceArr = [];
         $newInvoiceArr['id'] = $lr['id'];
         $newInvoiceArr['financial_year'] = $lr['financial_year'];
-        $newInvoiceArr['invoice_no'] = $data['invoice_no'];
-        $newInvoiceArr['invoice_date'] = $lr['date'];
-        $newInvoiceArr['due_date'] = $lr['date'];
-        $newInvoiceArr['start_location_id'] = 0;
-        $newInvoiceArr['po_number'] = 0;
-        $newInvoiceArr['material_invoice_no'] = 0;
-        $newInvoiceArr['end_location_id'] = 0;
 
         $invoicesPackage = new \Apps\Tms\Packages\Jobs\Invoices\JobsInvoices;
         $invoicesPackage->setFFAddUsingUpdateOrInsert(true);
@@ -207,6 +196,7 @@ class JobsLrs extends BasePackage
         }
 
         $activityLogs = array_merge($activityLogs, $invoicesPackage->packagesData->last);
+
         $this->addActivityLog($activityLogs);
 
         $this->addResponse('Added new Job!');
@@ -223,13 +213,41 @@ class JobsLrs extends BasePackage
 
         if ($this->update(array_merge($lr, $data))) {
             try {
-                // $tripsPackage = new \Apps\Tms\Packages\Jobs\Trips\JobsTrips;
-                // $tripsPackage->update(array_merge($trip, $data));
+                $tripsPackage = new \Apps\Tms\Packages\Jobs\Trips\JobsTrips;
+                $tripsPackage->update(array_merge($trip, $data));
 
                 $invoicesPackage = new \Apps\Tms\Packages\Jobs\Invoices\JobsInvoices;
                 $invoicesPackage->update(array_merge($invoice, $data));
 
+                $lr = $this->getLr($data['id']);
+
+                if (isset($data['update_all_expenses'])) {
+                    $expensesPackage = new \Apps\Tms\Packages\Jobs\Expenses\JobsExpenses;
+
+                    if (!$lr['expenses']) {
+                        $lr['expenses'] = [];
+                        $lr['expenses'] = $expensesPackage->checkCarryForwardedExpenses(['employee_id' => $lr['trip']['employee_id']]);
+                    }
+
+                    if (isset($lr['expenses']) && count($lr['expenses']) > 0) {
+                        foreach ($lr['expenses'] as $expense) {
+                            $expense['lr_no'] = $lr['lr_no'];//Update LR just in case it has changed
+
+                            if ($lr['trip']['employee_id'] !== $expense['employee_id']) {
+                                $expense['carry_forward'] = true;//Carry Forward expense for next trip.
+                            } else {
+                                $expense['carry_forward'] = null;
+                            }
+
+                            $expensesPackage->update($expense);
+                        }
+                    }
+                }
+
+                $this->releaseMutex($lr);
+
                 unset($data['lr']);
+
                 $this->addActivityLog($data, array_merge($lr, $trip, $invoice));
             } catch (\throwable $e) {
                 $this->addResponse($e->getMessage(), 1);
@@ -263,30 +281,10 @@ class JobsLrs extends BasePackage
         return false;
     }
 
-    public function checkLr($data)
+    public function getFy()
     {
-        $lr = $this->getLr($data['lr_no']);
-
-        if ($lr) {
-            $this->addResponse('Lorry Receipt: ' . $data['lr_no'] . ' already exists!', 1);
-
-            return false;
-        }
-
-        $this->addResponse('Lorry Receipt ' . $data['lr_no'] . ' is valid');
-    }
-
-    public function getNextLr()
-    {
-        $newLr = [];
-
-        if ($this->getDbCount(true) === 0) {
-            $newLr['lr_no'] = 1;
-        } else {
-            $newLr['lr_no'] = $this->getLastInsertedId() + 1;
-        }
-
         $now = \Carbon\Carbon::now();
+
         if ($now->month < 4) {
             $nowEndYear = substr($now->year, 2);
             $nowStartYear = substr($now->clone()->subYear(1)->year, 2);
@@ -295,11 +293,108 @@ class JobsLrs extends BasePackage
             $nowEndYear = substr($now->clone()->addYear(1)->year, 2);
         }
 
-        $newLr['financial_year'] = $nowStartYear . '-' . $nowEndYear;
+        $financialYear = $nowStartYear . '-' . $nowEndYear;
 
+        $this->addResponse('Generated financial year', 0, ['financialYear' => $financialYear]);
+    }
+
+    public function checkLr($data)
+    {
+        if ($this->config->databasetype === 'db') {
+            $params =
+                [
+                    'conditions'    => 'lr_no = :lrNo: AND financial_year = :financialYear:',
+                    'bind'          =>
+                        [
+                            'lrNo'              => $data['lr_no'],
+                            'financialYear'     => $data['financial_year']
+                        ]
+                ];
+        } else {
+            $params = ['conditions' => ['lr_no', '=', $data['lr_no']],['financial_year', '=', $data['financial_year']]];
+        }
+
+        $lr = $this->getByParams($params);
+
+        if ($lr && count($lr) === 1) {
+            $this->addResponse('Lorry Receipt #' . $data['lr_no'] . ' already exists!', 1);
+
+            return false;
+        }
+
+        $newLr = $this->getNextLr($data['financial_year']);
+
+        if (isset($newLr['lr_no'])) {
+            if ((int) $data['lr_no'] > $newLr['lr_no']) {
+                $this->addResponse('Lorry Receipt #' . $data['lr_no'] . ' is valid', 2, ['newLr' => $newLr]);
+
+                return true;
+            }
+        }
+
+        $this->addResponse('Lorry Receipt #' . $data['lr_no'] . ' is valid');
+    }
+
+    public function getNextLr($financialYear = null)
+    {
+        $now = \Carbon\Carbon::now();
+
+        if (!isset($financialYear) ||
+            (isset($financialYear) && $financialYear === '')
+        ) {
+            if ($now->month < 4) {
+                $nowEndYear = substr($now->year, 2);
+                $nowStartYear = substr($now->clone()->subYear(1)->year, 2);
+            } else {
+                $nowStartYear = substr($now->year, 2);
+                $nowEndYear = substr($now->clone()->addYear(1)->year, 2);
+            }
+
+            $financialYear = $nowStartYear . '-' . $nowEndYear;
+        }
+
+        if ($this->config->databasetype === 'db') {
+            $params =
+                [
+                    'conditions'    => 'financial_year = :financialYear:',
+                    'bind'          =>
+                        [
+                            'financialYear'         => $financialYear
+                        ]
+                ];
+        } else {
+            $params = ['conditions' => ['financial_year', '=', $financialYear]];
+        }
+
+        $lrs = $this->getByParams($params);
+
+        $lrNumbers = [];
+
+        $newLr['financial_year'] = $financialYear;
         $newLr['date'] = $now->format('d-m-Y');
 
-        $this->addResponse('Generated LR Details', 0, ['newLr' => $newLr]);
+        if ($lrs && count($lrs) > 0) {
+            foreach ($lrs as $lr) {
+                if ($lr['lr_no'] > 10000) {//Taking into note that while importing we create own lr numbers using timestamp.
+                    continue;
+                }
+                array_push($lrNumbers, (int) $lr['lr_no']);
+            }
+
+            if (count($lrNumbers) > 0) {
+                asort($lrNumbers);
+
+                $newLr['lr_no'] = $this->helper->last($lrNumbers) + 1;
+
+                $this->addResponse('Generated next lorry receipt #', 0, ['newLr' => $newLr]);
+
+                return $newLr;
+            }
+        }
+
+        $newLr['lr_no'] = 1;
+
+        $this->addResponse('Generated next lorry receipt #', 0, ['newLr' => $newLr]);
 
         return $newLr;
     }
@@ -378,15 +473,10 @@ class JobsLrs extends BasePackage
     {
         return
             [
-                '0' =>
-                    [
-                        'id' => '0',
-                        'name'  => 'Open'
-                    ],
                 '1' =>
                     [
                         'id' => '1',
-                        'name'  => 'Complete'
+                        'name'  => 'Open'
                     ],
                 '2' =>
                     [
@@ -401,6 +491,11 @@ class JobsLrs extends BasePackage
                 '4' =>
                     [
                         'id' => '4',
+                        'name'  => 'Complete'
+                    ],
+                '5' =>
+                    [
+                        'id' => '5',
                         'name'  => 'Invalid'
                     ]
             ];
@@ -499,7 +594,11 @@ class JobsLrs extends BasePackage
                         return $carry[$key];
                     }, $job);
 
-                    $formattedInvoice = str_replace($invoiceFormatKey, $value, $formattedInvoice);
+                    if ($value) {
+                        $formattedInvoice = str_replace($invoiceFormatKey, $value, $formattedInvoice);
+                    } else {
+                        $formattedInvoice = '';
+                    }
                 }
             }
 
@@ -508,13 +607,4 @@ class JobsLrs extends BasePackage
 
         return '';
     }
-
-    // public function getSender($job, $organisation_settings)
-    // {
-    //     if (isset($organisation_settings['invoice_format']) && $organisation_settings['invoice_format'] !== '') {
-
-    //     }
-
-    //     return '';
-    // }
 }

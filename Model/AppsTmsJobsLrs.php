@@ -3,6 +3,7 @@
 namespace Apps\Tms\Packages\Jobs\Lrs\Model;
 
 use Apps\Tms\Packages\Jobs\Charges\Model\AppsTmsJobsCharges;
+use Apps\Tms\Packages\Jobs\Expenses\Model\AppsTmsJobsExpenses;
 use Apps\Tms\Packages\Jobs\Invoices\Model\AppsTmsJobsInvoices;
 use Apps\Tms\Packages\Jobs\Payments\Model\AppsTmsJobsPayments;
 use Apps\Tms\Packages\Jobs\Trips\Model\AppsTmsJobsTrips;
@@ -65,7 +66,7 @@ class AppsTmsJobsLrs extends BaseModel
         );
 
         $this->modelRelations['charges']['relationObj'] = $this->hasMany(
-            'id',
+            'lr_no',
             AppsTmsJobsCharges::class,
             'lr_no',
             [
@@ -73,8 +74,17 @@ class AppsTmsJobsLrs extends BaseModel
             ]
         );
 
+        $this->modelRelations['expenses']['relationObj'] = $this->hasMany(
+            'lr_no',
+            AppsTmsJobsExpenses::class,
+            'lr_no',
+            [
+                'alias'                 => 'expenses'
+            ]
+        );
+
         $this->modelRelations['payments']['relationObj'] = $this->hasMany(
-            'id',
+            'lr_no',
             AppsTmsJobsPayments::class,
             'lr_no',
             [
