@@ -4,6 +4,7 @@ namespace Apps\Tms\Packages\Jobs\Lrs\Model;
 
 use Apps\Tms\Packages\Jobs\Charges\Model\AppsTmsJobsCharges;
 use Apps\Tms\Packages\Jobs\Expenses\Model\AppsTmsJobsExpenses;
+use Apps\Tms\Packages\Jobs\Fuel\Model\AppsTmsJobsFuel;
 use Apps\Tms\Packages\Jobs\Invoices\Model\AppsTmsJobsInvoices;
 use Apps\Tms\Packages\Jobs\Payments\Model\AppsTmsJobsPayments;
 use Apps\Tms\Packages\Jobs\Trips\Model\AppsTmsJobsTrips;
@@ -80,6 +81,15 @@ class AppsTmsJobsLrs extends BaseModel
             'lr_no',
             [
                 'alias'                 => 'expenses'
+            ]
+        );
+
+        $this->modelRelations['fuels']['relationObj'] = $this->hasMany(
+            'lr_no',
+            AppsTmsJobsFuel::class,
+            'lr_no',
+            [
+                'alias'                 => 'fuels'
             ]
         );
 
