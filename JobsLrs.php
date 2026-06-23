@@ -34,19 +34,10 @@ class JobsLrs extends BasePackage
             if ($lrsObj) {
                 $lr = $lrsObj->toArray();
 
-                // $addressObj = $lrsObj->getAddresses();
-
-                // $lr['address'] = [];
-
-                // if ($addressObj) {
-                //     $lr['address'] = $addressObj->toArray();
-                // }
-
                 return $lr;
             }
         } else {
             $this->setFFRelations(true);
-            // $this->setFFRelationsConditions(['addresses' => ['package_name', '=', 'Companies'], 'contacts' => ['package_name', '=', 'Companies']]);
 
             $lr = $this->getFirst('id', $lrsId, false, true, null, [], true);
 
@@ -58,18 +49,6 @@ class JobsLrs extends BasePackage
 
     public function addLr($data, $viaExtractor = false)
     {
-        // if (isset($data['lr'])) {//New LR via Form
-        //     $data['id'] = (int) $data['lr'];
-        //     $data['archived'] = false;
-        //     unset($data['lr']);
-        // }
-
-        // if (!isset($data['id'])) {
-        //     $this->getDbCount(true);
-
-        //     $data['id'] = $this->getLastInsertedId() + 1;
-        // }
-
         if (!isset($data['financial_year'])) {
             try {
                 $date = \Carbon\Carbon::now();
@@ -99,14 +78,6 @@ class JobsLrs extends BasePackage
 
             $data['financial_year'] = $startYear . '-' . $endYear;
         }
-
-        // if (!isset($data['invoice_no'])) {
-        //     $invoicesPackage = new \Apps\Tms\Packages\Jobs\Invoices\JobsInvoices;
-
-        //     $newInvoiceNumber = $invoicesPackage->getNextInvoiceNumber($data['financial_year']);
-
-        //     $data['invoice_no'] = $newInvoiceNumber;
-        // }
 
         //Add new LR
         if ($viaExtractor) {
@@ -206,10 +177,10 @@ class JobsLrs extends BasePackage
 
     public function updateLr($data)
     {
-        $lr = $this->getLr($data['id']);
+        $lrArr = $lr = $this->getLr($data['id']);
 
-        $trip = $lr['trip'];
-        $invoice = $lr['invoice'];
+        $tripArr = $trip = $lr['trip'];
+        $invoiceArr = $invoice = $lr['invoice'];
 
         if ($this->update(array_merge($lr, $data))) {
             try {
@@ -248,7 +219,7 @@ class JobsLrs extends BasePackage
 
                 unset($data['lr']);
 
-                $this->addActivityLog($data, array_merge($lr, $trip, $invoice));
+                $this->addActivityLog($data, array_merge($lrArr, $tripArr, $invoiceArr));
             } catch (\throwable $e) {
                 $this->addResponse($e->getMessage(), 1);
 
